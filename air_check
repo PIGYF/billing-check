@@ -1,0 +1,264 @@
+import pandas as pd
+#import openpyxl
+
+#表头准确性，sheet name准确性
+#path =(input('输入路径:'))
+path = r'C:\Users\DHY1SZH\Desktop\PTCN CEVA DBS DSV TEST .xlsx'
+df = pd.read_excel(path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
+df['Pick Up Date'] = pd.to_datetime(df['Pick Up Date'].dropna())
+df['ATA'] = pd.to_datetime(df['ATA'].dropna())
+df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
+df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
+df['HAWB'] = df['HAWB'].astype(str)
+
+all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,81])
+all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
+
+
+add_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+add_rate = pd.read_excel(add_rate_card_path,sheet_name ='Rate card')
+
+exchange_rate_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\Exchange rate.xlsx'
+exchange_rate = pd.read_excel(exchange_rate_path,sheet_name='Ex.CNY', index_col = 0)
+exchange_countries = pd.read_excel(exchange_rate_path,sheet_name='Countries', index_col = 0)
+currency_code = pd.read_excel(exchange_rate_path,sheet_name='Currency_code', index_col = 0)
+
+
+#FTS数据和账单合并
+def fts_merge(df,fts):
+    df = pd.merge(df,fts,how ='left',left_on = 'HAWB',right_on = '分运单号')
+    df.drop('分运单号',axis=1, inplace = True) 
+    return df
+
+def replace_country_currency(df):
+    for i in range(len(df['分运单号'])):
+        try:
+            df.loc[i,'启/抵运国(地区)'] = exchange_countries.loc[df['启/抵运国(地区)'][i],'缩写']
+        except:
+            df.loc[i,'启/抵运国(地区)'] = False
+        try:
+
+            df.loc[i,'运费币制']= currency_code.loc[df['运费币制'][i],'Currency']
+        except:
+            df.loc[i,'运费币制'] = False      
+            
+    return df
+
+try:
+    factory = path.split('\\')[-1][0:4]
+    #DCCS
+    if factory == 'DCCS':
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,47,51,52,55])
+    elif factory == 'RBAC':
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,60])
+    elif factory == 'PTCN':
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,59])        
+    else:
+        #DCCC
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,50,57,60,62])
+        
+    df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
+    df_shipment_export = pd.read_excel(path,sheet_name = 'Shipment Export',usecols = [2,9,44,46])
+    df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
+    replace_country_currency(df_shipment_export)
+                                  
+    df = fts_merge(df,df_tracking_report)
+    df = fts_merge(df,df_shipment_export)
+    print("已匹配FTS日志")
+except:
+    print("无法匹配FTS日志")
+
+
+# 去除非AE
+# df['Division'] = df['Division'].apply(lambda x : str(x))
+# df = df.loc[df['Division'].str.contains('AE')]
+
+#拆分成本中心
+#split_columns = ['Cost center','Division','Comments']
+#df1 = df.drop(columns=split_columns, axis = 1)
+# df_costcenter = df['Cost center'].str.split(';',expand = True).stack().reset_index(level = 1,drop = True).rename('Cost center 拆分')
+# df_comments = df['Comments'].str.split(';',expand = True).stack().reset_index(level = 1,drop = True).rename('Comments 拆分')
+# df_split = pd.concat([df_costcenter,df_comments,],axis = 1)
+# df = df.join(df_split)
+
+
+#价卡清洗
+def rate_card_cleaning(rate_card):
+    pvg_rate = rate_card[(rate_card['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] =='PVG') & (rate_card['Place/Zone of Destination'] !='(blank)') & (rate_card['Place/Zone of Destination'].str[:8] !='Shanghai')]
+    rate_card.drop(index = pvg_rate.index,inplace = True)
+    return rate_card
+
+rate_card_cleaning(all_rate_card)
+rate_card_cleaning(add_rate)
+
+
+#账单合并价卡
+def merge_billing():
+    df_merge = pd.merge(df,all_rate_card,how ='left',
+                        left_on = ['LSP','Mode of Transport','Require Service Level','Origin Country [ISO country code]','Place/Zone of Origin','Origin Port','Destination Port'],
+                        right_on = ['Contract Partner','Transportation Mode','Type of service','Origin Country [ISO country code]','Place/Zone of Origin','LSP offered Airport of Loading  [3-digit port code] or Airport Grouping','LSP offered Airport of Destination  [3-digit port code] or Airport Gr']
+                        )
+    #Xfee
+    column_index = df_merge.columns.get_loc('Door to door LT')
+    df_merge.insert(loc = column_index + 1, column = 'X fee', value = None)
+    for i in range(0,len(df_merge.index)):
+        if df_merge.loc[i,'X-ray fee\n(EUR)']!= 0:
+            if pd.isna(df_merge.loc[i,'Other charges X-ray [per kg actual weight]']) is False:
+                if pd.isna(df_merge.loc[i,'Xray Minimum [per HAWB]']) is False & pd.isna(df_merge.loc[i,'Xray Maximum [per HAWB]']) is False:
+                    df_merge.loc[i,'X fee'] = min(max(df_merge.loc[i,'Xray Minimum [per HAWB]'],df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] * df_merge.loc[i,'Gross Weight\n(KG)']),df_merge.loc[i,'Xray Maximum [per HAWB]'])
+                else:
+                    df_merge.loc[i,'X fee']= df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] * df_merge.loc[i,'Gross Weight\n(KG)']                
+            else:                
+                df_merge.loc[i,'X fee'] = False
+        else:
+            df_merge.loc[i,'X fee'] = 0
+            df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] = None
+    print('已匹配 X-ray fee')
+
+    #Storage fee 
+    
+    #其他货代用P/U Date - ATA
+    df_merge.insert(loc = column_index + 2, column = 'Storage fee', value = None)
+    for i in range(0,len(df_merge.index)):
+        #DBS、Cosco 用 P/U Date - 到货通知日，到通分16点之前（算前一天）和16点之后（算当天）
+        if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
+            storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+        else:
+            storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'ATA']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+        
+        if df_merge.loc[i,'Storage Rate\n(CNY)'] != 0:
+            if pd.isna(df_merge.loc[i,'Free Days of storage at destination']) is False:
+                if storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] != 'IN':
+                    df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)']
+                elif storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
+                    df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)'] * df_merge.loc[i,'Ex.\nMain']
+                else:
+                    df_merge.loc[i,'Storage fee'] = 0
+            else:
+                df_merge.loc[i,'Free Days of storage at destination'] =  False
+                df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] =  False
+        else:
+            df_merge.loc[i,'Storage fee'] = 0
+    print('已匹配 Storage fee')
+
+    #Main careiage rate、add lead time
+    df_merge.insert(loc = column_index + 3, column = 'TF Rate', value = None)
+    df_merge.insert(loc = column_index + 4, column = 'add lead time', value = None)
+    for i in range(len(df_merge.index)):
+        tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
+                             (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
+                             (add_rate[' Place/Zone of Origin'] == df_merge.loc[i,'Place/Zone of Origin']) &
+                             #(add_rate['LSP offered Airport of Loading  [3-digit port code] or Airport Grouping'] == df_merge.loc[i,'Origin Port']) &
+                             (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port']) &
+                             (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
+                             (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])
+                              ]
+        try:
+            df_merge.loc[i,'TF Rate'] = tf_rate['TF rate'].tolist()[0]
+            df_merge.loc[i,'add lead time'] = tf_rate['Adder Lead time in days [ATA]'].tolist()[0]
+        except:
+            df_merge.loc[i,'TF Rate'] = False
+            df_merge.loc[i,'add lead time'] = False
+    print('已匹配 add rate card')
+
+
+    #origin exchange rate
+    #main exchange rate IN用USD, 其他用main carriage rate
+    #FTS 申报金额
+    df_merge.insert(loc = column_index + 5, column = 'Ex.Origin', value = None)
+    df_merge.insert(loc = column_index + 6, column = 'Ex.Main', value = None)
+    df_merge.insert(loc = column_index + 7, column = 'FTS-CNY', value = None)
+
+    exchange_month = pd.to_datetime(df_merge['Pick Up Date'].dropna()).apply(lambda x:x.strftime('%Y/%m'))
+    for i in range(len(df_merge.index)):
+        try:
+            exchange_origin = exchange_rate.loc[df_merge['Currency'][i],exchange_month[i]]
+            df_merge.loc[i,'Ex.Origin'] = exchange_origin
+            if df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
+                exchange_main = exchange_rate.loc['USD',exchange_month[i]]
+            else:
+                exchange_main = exchange_rate.loc[df_merge['Currency_7'][i],exchange_month[i]]
+            df_merge.loc[i,'Ex.Main'] = exchange_main
+
+        except:
+            df_merge.loc[i,'Ex.Origin'] = False
+            df_merge.loc[i,'Ex.Main'] = False
+        try:    
+            declare_currency = exchange_rate.loc[df_merge['运费币制'][i],exchange_month[i]]
+            df_merge.loc[i,'FTS-CNY'] = declare_currency *df_merge['代理运费金额'][i]
+        except:
+            df_merge.loc[i,'FTS-CNY'] = False
+            
+#         try: 
+#             df_merge.loc[i,'DTP'] = ((df_merge.loc[i,'Pre-carriage Charge Rate'] + df_merge.loc[i,'Origin Terminal Handling Charge']) * df_merge.loc[i,'C. W/M  (KG/CBM)'] * df_merge.loc[i,'Ex.\nOrigin']
+#                                  + df_merge.loc[i,'Main Carriage Rate(inc.main + BAF)'] * df_merge.loc[i,'C. W/M  (KG/CBM)'] * df_merge.loc[i,'Ex.\nMain']
+#                                  + df_merge.loc[i,'X-ray fee\n(EUR)'] * exchange_rate.loc[df_merge['Currency_20'][i],exchange_month[i]]
+#                                  )
+#         except:
+#             df_merge.loc[i,'DTP'] = False
+            
+    print('已匹配 Exchange rate')
+#    print('已计算DTP费用（）')
+    
+    
+     #df_merge.insert(loc = column_index + 8, column = 'DTP', value = None)      
+    #df_merge.insert(loc = column_index + 9, column = 'FTS vs DTP', value = None)
+    #df_merge.insert(loc = column_index + 10, column = 'FTS deduct', value = None)
+    #df_merge.insert(loc = column_index + 11, column = 'Pay to LSP', value = None)
+    
+
+    
+    
+    
+    return df_merge
+
+df_merge = merge_billing()
+
+
+
+
+#核对
+def compare(a,b):
+    try:
+        c = b +'_核对'
+        df_merge.insert(loc = (df_merge.columns.get_loc(b)) + 1, column = c, value = None)
+        for i in range(len(df_merge.index)):
+            if df_merge.loc[i,a] == df_merge.loc[i,b]:
+                df_merge.loc[i,c] = None
+            else:
+                df_merge.loc[i,c] = False
+
+        print(a + " 核对完成")
+        return df_merge
+    except:
+        print(a + " 核对失败")
+
+           
+compare('C. W/M  (KG/CBM)','计费重量')  
+compare('Incoterms','贸易术语')
+compare('Origin Country [ISO country code]','启/抵运国(地区)')
+  
+compare('Pre-carriage Charge Rate','Pre-Carriage Rate')
+compare('Origin Terminal Handling Charge','Airport Origin Charge')
+compare('Destination Terminal Handling Charge/ rate(CNY)','Airport of Destination Charge') 
+compare('Ex.\nOrigin','Ex.Origin')
+compare('Ex.\nMain','Ex.Main')
+compare('X-ray fee\n(EUR)','X fee')
+compare('Main Carriage Rate(inc.main + BAF)','TF Rate')
+compare('Storage Rate\n(CNY)','Storage fee')
+
+    
+    
+df_merge.to_excel(r'C:\Users\DHY1SZH\desktop\核对.xlsx')
+# print(df_merge)
+# try:
+#     writer = pd.ExcelWriter(path, engine = 'openpyxl')
+#     book = load_workbook(writer.path)
+#     writer.book = book
+#     df.to_excel(excel_writer=writer, sheet_name='sheet3')
+#     writer.save()
+#     print('核对完成')
+# except:
+#     print('文件无法保存')
+
