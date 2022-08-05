@@ -1,18 +1,29 @@
 import pandas as pd
+import math
 #import openpyxl
 
 #表头准确性，sheet name准确性
 #path =(input('输入路径:'))
 path = r'C:\Users\DHY1SZH\Desktop\PTCN CEVA DBS DSV TEST .xlsx'
-df = pd.read_excel(path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
-df['Pick Up Date'] = pd.to_datetime(df['Pick Up Date'].dropna())
-df['ATA'] = pd.to_datetime(df['ATA'].dropna())
-df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
-df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
-df['HAWB'] = df['HAWB'].astype(str)
+def df_cleaning(path):
+    try:
+        df = pd.read_excel(path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
+    except:
+        df = pd.read_excel(path,sheet_name = 'Billing template',skip_rows = [0,5],header = 6)
+
+    df['Pick Up Date'] = pd.to_datetime(df['Pick Up Date'].dropna())
+    df['ATA'] = pd.to_datetime(df['ATA'].dropna())
+    df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
+    df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
+    df['HAWB'] = df['HAWB'].astype(str)
+    for i in range(len(df.index)):
+        if df.loc[i,'Require Service Level'] in ['STD','Standrad']:
+            df.loc[i,'Require Service Level'] = 'Standard'
+    return df
+
 
 all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
-all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,81])
+all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,80])
 all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
 
 
@@ -53,7 +64,11 @@ try:
     elif factory == 'RBAC':
         df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,60])
     elif factory == 'PTCN':
-        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,59])        
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,59])
+    elif factory == 'RBCD':
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,45,51,55])        
+    elif factory == 'RBCW':
+        df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37])  
     else:
         #DCCC
         df_tracking_report = pd.read_excel(path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,50,57,60,62])
@@ -99,13 +114,23 @@ def merge_billing():
                         left_on = ['LSP','Mode of Transport','Require Service Level','Origin Country [ISO country code]','Place/Zone of Origin','Origin Port','Destination Port'],
                         right_on = ['Contract Partner','Transportation Mode','Type of service','Origin Country [ISO country code]','Place/Zone of Origin','LSP offered Airport of Loading  [3-digit port code] or Airport Grouping','LSP offered Airport of Destination  [3-digit port code] or Airport Gr']
                         )
+    #计费重
+    CW_index = df_merge.columns.get_loc('计费重量')
+    df_merge.insert(loc = CW_index + 1, column = '计费重', value = None)
+    for i in range(0,len(df_merge.index)):
+        if df_merge.loc[i,'Require Service Level'] == 'Standard':
+            df_merge.loc[i,'计费重']= max(30,df_merge.loc[i,'Gross Weight\n(KG)'],df_merge.loc[i,'Total Volume\n(CBM)']*125)
+        else:
+            df_merge.loc[i,'计费重']= max(30,df_merge.loc[i,'Gross Weight\n(KG)'],df_merge.loc[i,'Total Volume\n(CBM)']*167)            
+    df_merge['计费重'] = df_merge['计费重'].apply(lambda x:math.ceil(x) if round(x) == math.ceil(x) else round(x) + 0.5)
+    
     #Xfee
-    column_index = df_merge.columns.get_loc('Door to door LT')
-    df_merge.insert(loc = column_index + 1, column = 'X fee', value = None)
+    xfee_index = df_merge.columns.get_loc('Other charges X-ray [per kg actual weight]')
+    df_merge.insert(loc = xfee_index + 1, column = 'X fee', value = None)
     for i in range(0,len(df_merge.index)):
         if df_merge.loc[i,'X-ray fee\n(EUR)']!= 0:
             if pd.isna(df_merge.loc[i,'Other charges X-ray [per kg actual weight]']) is False:
-                if pd.isna(df_merge.loc[i,'Xray Minimum [per HAWB]']) is False & pd.isna(df_merge.loc[i,'Xray Maximum [per HAWB]']) is False:
+                if (pd.isna(df_merge.loc[i,'Xray Minimum [per HAWB]'])) is False & (df_merge.loc[i,'Xray Maximum [per HAWB]'] != 0):
                     df_merge.loc[i,'X fee'] = min(max(df_merge.loc[i,'Xray Minimum [per HAWB]'],df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] * df_merge.loc[i,'Gross Weight\n(KG)']),df_merge.loc[i,'Xray Maximum [per HAWB]'])
                 else:
                     df_merge.loc[i,'X fee']= df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] * df_merge.loc[i,'Gross Weight\n(KG)']                
@@ -116,12 +141,13 @@ def merge_billing():
             df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] = None
     print('已匹配 X-ray fee')
 
-    #Storage fee 
-    
+    #Storage fee    
     #其他货代用P/U Date - ATA
-    df_merge.insert(loc = column_index + 2, column = 'Storage fee', value = None)
+    storage_index = df_merge.columns.get_loc('Other charges-Storage fee airport destination after free days')
+    df_merge.insert(loc = storage_index + 1, column = 'Storage fee', value = None)
     for i in range(0,len(df_merge.index)):
-        #DBS、Cosco 用 P/U Date - 到货通知日，到通分16点之前（算前一天）和16点之后（算当天）
+        #DBS、Cosco 用 P/U Date - 到货通知日
+        #CEVA 分RBCW和RBAC用到通日计算
         if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
             storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
         else:
@@ -143,8 +169,10 @@ def merge_billing():
     print('已匹配 Storage fee')
 
     #Main careiage rate、add lead time
-    df_merge.insert(loc = column_index + 3, column = 'TF Rate', value = None)
-    df_merge.insert(loc = column_index + 4, column = 'add lead time', value = None)
+    TF_index = df_merge.columns.get_loc('Main Carriage rate ')
+    df_merge.insert(loc = TF_index + 1, column = 'TF Rate', value = None)
+    LT_index = df_merge.columns.get_loc('Door to port LT')
+    df_merge.insert(loc = LT_index + 1, column = 'add lead time', value = None)
     for i in range(len(df_merge.index)):
         tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
                              (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
@@ -166,9 +194,9 @@ def merge_billing():
     #origin exchange rate
     #main exchange rate IN用USD, 其他用main carriage rate
     #FTS 申报金额
-    df_merge.insert(loc = column_index + 5, column = 'Ex.Origin', value = None)
-    df_merge.insert(loc = column_index + 6, column = 'Ex.Main', value = None)
-    df_merge.insert(loc = column_index + 7, column = 'FTS-CNY', value = None)
+    df_merge.insert(loc = LT_index + 2, column = 'Ex.Origin', value = None)
+    df_merge.insert(loc = LT_index + 3, column = 'Ex.Main', value = None)
+    df_merge.insert(loc = LT_index + 4, column = 'FTS-CNY', value = None)
 
     exchange_month = pd.to_datetime(df_merge['Pick Up Date'].dropna()).apply(lambda x:x.strftime('%Y/%m'))
     for i in range(len(df_merge.index)):
@@ -235,7 +263,7 @@ def compare(a,b):
         print(a + " 核对失败")
 
            
-compare('C. W/M  (KG/CBM)','计费重量')  
+compare('计费重','计费重量')  
 compare('Incoterms','贸易术语')
 compare('Origin Country [ISO country code]','启/抵运国(地区)')
   
@@ -251,14 +279,5 @@ compare('Storage Rate\n(CNY)','Storage fee')
     
     
 df_merge.to_excel(r'C:\Users\DHY1SZH\desktop\核对.xlsx')
-# print(df_merge)
-# try:
-#     writer = pd.ExcelWriter(path, engine = 'openpyxl')
-#     book = load_workbook(writer.path)
-#     writer.book = book
-#     df.to_excel(excel_writer=writer, sheet_name='sheet3')
-#     writer.save()
-#     print('核对完成')
-# except:
-#     print('文件无法保存')
+
 
