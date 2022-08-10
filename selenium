@@ -2,6 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
 
+# ChromeDriver 镜像: http://npm.taobao.org/mirrors/chromedriver/
+# chromeDriver 下载以及放到scripts
+
 url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
 username = 'HPI2SZH'
 password = 'Hupingping.3'
@@ -11,6 +14,7 @@ headers = {
 
 driver = webdriver.Chrome()
 driver.get(url)
+driver.implicitly_wait(10) #隐式等待
 driver.find_element(By.XPATH,'//*[@id="Label15"]').click()
 user_name_label = driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(username)
 password_label = driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(password)
@@ -20,7 +24,7 @@ login = driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
 time.sleep(1)
 
 
-#SITE 选择
+#SITE 选择登录
 driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[3]/div[2]/div/section/div[2]/div/div/div[1]/span').click()
 RBAC = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[23]').click()
 #DCCC = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[49]').click()
@@ -29,3 +33,11 @@ RBAC = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[23]').cli
 #RBCW = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[60]').click()
 #PTCN = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[62]').click()
 driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+
+
+test_hawb = ['1797315763','8009000263']
+
+driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[3]/a').click() #DCCS跟踪表
+driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]').send_keys(test_hawb) #分运单号
+#显示等待https://blog.csdn.net/qq_44728587/article/details/122997412
+driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_btnSearch"]').click() #查询按钮
