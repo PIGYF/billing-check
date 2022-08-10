@@ -1,0 +1,31 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+import time
+
+url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
+username = 'HPI2SZH'
+password = 'Hupingping.3'
+headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36'
+}
+
+driver = webdriver.Chrome()
+driver.get(url)
+driver.find_element(By.XPATH,'//*[@id="Label15"]').click()
+user_name_label = driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(username)
+password_label = driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(password)
+verifycode = input("请输入验证码： ")
+verify_code_label = driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').send_keys(verifycode)
+login = driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+time.sleep(1)
+
+
+#SITE 选择
+driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[3]/div[2]/div/section/div[2]/div/div/div[1]/span').click()
+RBAC = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[23]').click()
+#DCCC = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[49]').click()
+#DCCS = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[50]').click()
+#RBCD = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[58]').click()
+#RBCW = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[60]').click()
+#PTCN = driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[62]').click()
+driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
