@@ -38,6 +38,23 @@ driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
 test_hawb = ['1797315763','8009000263']
 
 driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[3]/a').click() #DCCS跟踪表
-driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]').send_keys(test_hawb) #分运单号
+driver.switch_to.frame('main-iframe')
+hawb_label1 = driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]')
+hawb_label1.click()
+for i in test_hawb:
+    hawb_label1.send_keys( i +'\n') #分运单号
 #显示等待https://blog.csdn.net/qq_44728587/article/details/122997412
 driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_btnSearch"]').click() #查询按钮
+driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_btnExport"]').click() #导出按钮
+driver.switch_to.default_content()#方法，就可以回退到主层
+
+driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[6]/a').click() #货运信息
+driver.switch_to.frame('main-iframe')
+hawb_label2 = driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_txtBlId"]')
+hawb_label2.click()
+for i in test_hawb:
+    hawb_label2.send_keys( i +'\n') #分运单号
+driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_ddlOperatorUser_I"]').clear()#操作用户
+driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_ddlTrackingOperator_I"]').clear()#跟单员
+driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_btnSearch"]').click() #查询按钮
+driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_btnExportHeader"]').click() #导出按钮
