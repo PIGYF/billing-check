@@ -1,11 +1,13 @@
 import tkinter as tk
 from  tkinter import filedialog
 import threading  # 导入多线程模块
+from tkinter import ttk  #下拉选择框
 import pandas as pd
 import time
 import os
 import math
-from tkinter import ttk  #下拉选择框
+from selenium import webdriver
+from selenium.webdriver.common.by import By
 
 class GUI:
 
@@ -45,6 +47,10 @@ class GUI:
             values=values,  # 设置下拉框的选项
         )
         self.combobox.grid(row=2, column=1,sticky = 'w')
+        
+        self.v1 = tk.IntVar()
+        self.Checkbutton01 = tk.Checkbutton(self.root, text="FTS核对",variable=self.v1)
+        self.Checkbutton01.grid(row=2, column=1,sticky = 'e')
         
     def event(self):
         try:
@@ -96,7 +102,8 @@ class GUI:
             self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--成功\n')
         except:
             self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--失败\n')
-            
+         
+        #RBCW货损报告
         def damage_report_file(df):
             search_path =r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\06_RBCW 4Q&8D  report'
             names = os.listdir(search_path)
@@ -122,6 +129,92 @@ class GUI:
             self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配货损报告--成功\n')
         else:
             pass
+        
+        #FTS数据下载
+        def fts_download():
+            url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
+            username = 'HPI2SZH'
+            password = 'Hupingping.3'
+            options = webdriver.ChromeOptions()
+            options.add_argument("download.default_directory=C:/Users/DHY1SZH/Desktop")
+
+            driver = webdriver.Chrome(options=options)
+            driver.get(url)
+            driver.implicitly_wait(10) #隐式等待
+            driver.find_element(By.XPATH,'//*[@id="Label15"]').click()
+            driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(username)
+            driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(password)
+            verifycode = input("请输入验证码： ")
+            driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').send_keys(verifycode)
+            driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+            time.sleep(1)
+            
+            
+            #SITE 选择登录
+            driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[3]/div[2]/div/section/div[2]/div/div/div[1]/span').click()
+            if self.factory == 'DCCS':
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[50]').click() #DCCS
+            elif self.factory == 'RBAC':
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[23]').click() #RBAC 
+            elif self.factory == 'PTCN':
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[62]').click()  #PTCN
+            elif self.factory == 'RBCD':
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[58]').click() #RBCD
+            elif self.factory == 'RBCW':
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[60]').click()  #RBCW
+            else:
+                driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[49]').click() #DCCC
+
+            driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+            
+            
+            test_hawb = df['HAWB'].astype(str)
+            
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[3]/a').click() #DCCS跟踪表
+            driver.switch_to.frame('main-iframe')
+            hawb_label1 = driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]')
+            hawb_label1.click()
+            for i in test_hawb:
+                hawb_label1.send_keys( i +'\n') #分运单号
+            driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_btnSearch"]').click() #查询按钮
+            driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_btnExport"]').click() #导出按钮
+            name1 = 'Tracking_Report_' + time.strftime('%Y%m%d%H%M')
+            driver.switch_to.default_content()#方法，就可以回退到主层
+            
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[6]/a').click() #货运信息
+            driver.switch_to.frame('main-iframe')
+            hawb_label2 = driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_txtBlId"]')
+            hawb_label2.click()
+            for i in test_hawb:
+                hawb_label2.send_keys( i +'\n') #分运单号
+            driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_ddlOperatorUser_I"]').clear()#操作用户
+            driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_ddlTrackingOperator_I"]').clear()#跟单员
+            driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_btnSearch"]').click() #查询按钮
+            driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_btnExportHeader"]').click() #导出按钮
+            name2 ='Shipment_Export_' + time.strftime('%Y%m%d%H%M')
+            
+                
+            
+            time.sleep(2)
+            user_name = os.getlogin()
+            fts_report_path =r'C:/Users/%s/Downloads' % (user_name)
+            names = os.listdir(fts_report_path)
+            for name in names:
+                if name1 in name and ".xlsx" in name:
+                    self.tracking_report_path = os.path.abspath(os.path.join(fts_report_path, name))
+                if name2 in name and ".xlsx" in name:
+                    self.shipment_report_path = os.path.abspath(os.path.join(fts_report_path, name))
+            
+            return self.tracking_report_path,self.shipment_report_path
+        
+        if self.v1.get() == 1:
+            try:
+                fts_download()
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + 'FTS数据下载--失败\n')
+                pass
+        else:
+            pass
             
         
         #FTS数据和账单合并
@@ -143,24 +236,24 @@ class GUI:
                     df.loc[i,'运费币制'] = False      
 
             return df
-
+        
         try:
             if self.factory == 'DCCS':
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,47,51,52,55])
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,47,51,52,55])
             elif self.factory == 'RBAC':
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,60])
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,60])
             elif self.factory == 'PTCN':
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,59])
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,59])
             elif self.factory == 'RBCD':
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,45,51,55])        
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,45,51,55])        
             elif self.factory == 'RBCW':
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37])  
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37])  
             else:
                 #DCCC
-                df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,50,57,60,62])
+                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,50,57,60,62])
 
             df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
-            df_shipment_export = pd.read_excel(self.path,sheet_name = 'Shipment Export',usecols = [2,9,44,46])
+            df_shipment_export = pd.read_excel(self.shipment_report_path,usecols = [2,9,44,46])
             df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
             replace_country_currency(df_shipment_export)
 
@@ -172,7 +265,9 @@ class GUI:
         
         #价卡清洗
         def rate_card_cleaning(rate_card):
-            pvg_rate = rate_card[(rate_card['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] =='PVG') & (rate_card['Place/Zone of Destination'] !='(blank)') & (rate_card['Place/Zone of Destination'].str[:8] !='Shanghai')]
+            pvg_rate = rate_card[(rate_card['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] =='PVG') & 
+                                 (rate_card['Place/Zone of Destination'] !='(blank)') & 
+                                 (rate_card['Place/Zone of Destination'].str[:8] !='Shanghai')]
             rate_card.drop(index = pvg_rate.index,inplace = True)
             return rate_card
 
@@ -234,8 +329,10 @@ class GUI:
                 df_merge.insert(loc = storage_index + 1, column = 'Storage fee', value = None)
                 for i in range(0,len(df_merge.index)):
                     #DBS、Cosco 用 P/U Date - 到货通知日
-                    #CEVA 分RBCW和RBAC用到通日计算
+                    #CEVA 分RBCW和RBAC/PTCN用到通日计算
                     if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
+                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+                    elif df_merge.loc[i,'LSP'] == 'CEVA' and self.factory in ['RBAC','PTCN','RBCW']:
                         storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
                     else:
                         storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'ATA']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
@@ -264,19 +361,29 @@ class GUI:
                 LT_index = df_merge.columns.get_loc('Door to port LT')
                 df_merge.insert(loc = LT_index + 1, column = 'add lead time', value = None)
                 for i in range(len(df_merge.index)):
-                    tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
-                                         (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
-                                         (add_rate[' Place/Zone of Origin'] == df_merge.loc[i,'Place/Zone of Origin']) &
-                                         #(add_rate['LSP offered Airport of Loading  [3-digit port code] or Airport Grouping'] == df_merge.loc[i,'Origin Port']) &
-                                         (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port']) &
-                                         (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
-                                         (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])
-                                          ]
+                    if df_merge.loc[i,'LSP'] == 'KWE':
+                        tf_rate = add_rate[(add_rate['LSP'] == 'KWE') & 
+                                           (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]'])&
+                                           (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port'])&
+                                           (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
+                                           (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])]                   
+                    else:
+                        tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
+                                            (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
+                                            (add_rate[' Place/Zone of Origin'] == df_merge.loc[i,'Place/Zone of Origin']) &
+                                            #(add_rate['LSP offered Airport of Loading  [3-digit port code] or Airport Grouping'] == df_merge.loc[i,'Origin Port']) &
+                                            (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port']) &
+                                            (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
+                                            (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])
+                                             ]
                     try:
                         df_merge.loc[i,'TF Rate'] = tf_rate['TF rate'].tolist()[0]
-                        df_merge.loc[i,'add lead time'] = tf_rate['Adder Lead time in days [ATA]'].tolist()[0]
                     except:
                         df_merge.loc[i,'TF Rate'] = False
+                    try:    
+                        df_merge.loc[i,'add lead time'] = tf_rate['Adder Lead time in days [ATA]'].tolist()[0]
+                    except:
+
                         df_merge.loc[i,'add lead time'] = False
             except:
                 pass
@@ -365,6 +472,7 @@ class GUI:
         self.w1.delete("1.0", "end")
         self.factory = self.combobox.get()
         self.w1.insert(1.0, '已选择--%s\n' % (str(self.factory)))
+        self.w1.insert(1.0, 'FTS核对勾选--%s\n' % (str(self.v1.get())))
         self.T = threading.Thread(target=self.event)  # 多线程
         self.T.setDaemon(True)  # 线程守护，即主进程结束后，此线程也结束。否则主进程结束子进程不结束
         self.T.start()  # 启动
