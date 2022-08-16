@@ -13,9 +13,12 @@ class GUI:
 
     def __init__(self):
         self.root = tk.Tk()
-        self.root.title('Test')
+        self.root.title('Billing')
         self.root.geometry("550x240+100+150")
-        self.interface()       
+        self.interface()
+        self.url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
+        self.username = 'HPI2SZH'
+        self.password = 'Hupingping.3'
 
     def interface(self):
         self.Button0 = tk.Button(self.root, text="Start",command=self.start)
@@ -48,11 +51,17 @@ class GUI:
         )
         self.combobox.grid(row=2, column=1,sticky = 'w')
         
+        self.Entry01 = tk.StringVar(self.root)
+        self.Entry1 = tk.Entry(self.root,textvariable=self.Entry01 )#验证码输入
+        self.Entry1.grid(row=2, column=1,sticky = 'e')
+        
         self.v1 = tk.IntVar()
-        self.Checkbutton01 = tk.Checkbutton(self.root, text="FTS核对",variable=self.v1)
-        self.Checkbutton01.grid(row=2, column=1,sticky = 'e')
+        self.Checkbutton01 = tk.Checkbutton(self.root, text="FTS核对",variable=self.v1)#勾选框
+        self.Checkbutton01.grid(row=2, column=1)
         
     def event(self):
+        
+        #账单数据清洗
         try:
             df = pd.read_excel(self.path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
         except:
@@ -69,9 +78,14 @@ class GUI:
             df.rename(columns={' Require Service Level':'Require Service Level'},inplace=True)
         except:
             pass
+        
+        try:
+            df.rename(columns={' Storage cost\n(CNY)':'Storage Rate\n(CNY)'},inplace=True)
+        except:
+            pass
             
         df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
-        df['HAWB'] = df['HAWB'].astype(str)
+        df['HAWB'] = df['HAWB'].astype(str).replace('\\.0', '', regex=True)
         for i in range(len(df.index)):
             if df.loc[i,'Require Service Level'] in ['STD','Standrad']:
                 df.loc[i,'Require Service Level'] = 'Standard'
@@ -132,21 +146,44 @@ class GUI:
         
         #FTS数据下载
         def fts_download():
-            url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
-            username = 'HPI2SZH'
-            password = 'Hupingping.3'
             options = webdriver.ChromeOptions()
             options.add_argument("download.default_directory=C:/Users/DHY1SZH/Desktop")
-
             driver = webdriver.Chrome(options=options)
-            driver.get(url)
+            driver.set_window_size(width=600,height=800,windowHandle='current')
+            driver.set_window_position(y=0, x=800)
+            driver.get(self.url)
             driver.implicitly_wait(10) #隐式等待
             driver.find_element(By.XPATH,'//*[@id="Label15"]').click()
-            driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(username)
-            driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(password)
-            verifycode = input("请输入验证码： ")
-            driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').send_keys(verifycode)
+            driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(self.username)
+            driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(self.password)
+            
+            #verifycode = input("请输入验证码： ")
+            self.showverifycode()
+            while len(self.verifycode) != 4:
+                time.sleep(2)
+                self.showverifycode()
+                if len(self.verifycode) == 4:
+                    break
+                
+            driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').send_keys(self.verifycode)
             driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+            errmessage = driver.find_element(By.XPATH,'//*[@id="lblErrMessage"]').text
+            if errmessage == "校验码错误/Incorrect Verification Code!":
+                driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(self.password)
+                driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').clear()
+                self.Entry1.delete(0, "end")
+                time.sleep(2)
+                self.showverifycode()
+                while len(self.verifycode) != 4:
+                    time.sleep(2)
+                    self.showverifycode()
+                    if len(self.verifycode) == 4:
+                        break                
+                driver.find_element(By.XPATH,'//*[@id="txtVerifyCode"]').send_keys(self.verifycode)
+                driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+            else:
+                pass
+            
             time.sleep(1)
             
             
@@ -165,11 +202,9 @@ class GUI:
             else:
                 driver.find_element(By.XPATH,'//*[@id="ctl01"]/div[5]/div/ul/li[49]').click() #DCCC
 
-            driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()
+            driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()           
             
-            
-            test_hawb = df['HAWB'].astype(str)
-            
+            test_hawb = df['HAWB']            
             driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[3]/a').click() #DCCS跟踪表
             driver.switch_to.frame('main-iframe')
             hawb_label1 = driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]')
@@ -321,38 +356,6 @@ class GUI:
                         df_merge.loc[i,'Other charges X-ray [per kg actual weight]'] = None
             except:
                 pass
-
-            try:
-                #Storage fee    
-                #其他货代用P/U Date - ATA
-                storage_index = df_merge.columns.get_loc('Other charges-Storage fee airport destination after free days')
-                df_merge.insert(loc = storage_index + 1, column = 'Storage fee', value = None)
-                for i in range(0,len(df_merge.index)):
-                    #DBS、Cosco 用 P/U Date - 到货通知日
-                    #CEVA 分RBCW和RBAC/PTCN用到通日计算
-                    if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
-                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
-                    elif df_merge.loc[i,'LSP'] == 'CEVA' and self.factory in ['RBAC','PTCN','RBCW']:
-                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
-                    else:
-                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'ATA']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
-                
-
-                    if df_merge.loc[i,'Storage Rate\n(CNY)'] != 0:
-                        if pd.isna(df_merge.loc[i,'Free Days of storage at destination']) is False:
-                            if storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] != 'IN':
-                                df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)']
-                            elif storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
-                                df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)'] * df_merge.loc[i,'Ex.\nMain']
-                            else:
-                                df_merge.loc[i,'Storage fee'] = 0
-                        else:
-                            df_merge.loc[i,'Free Days of storage at destination'] =  False
-                            df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] =  False
-                    else:
-                        df_merge.loc[i,'Storage fee'] = 0
-            except:
-                pass
             
             try:
                 #Main careiage rate、add lead time
@@ -419,6 +422,34 @@ class GUI:
             except:
                 pass
             
+            try:
+                #Storage fee    
+                #其他货代用P/U Date - ATA
+                storage_index = df_merge.columns.get_loc('Other charges-Storage fee airport destination after free days')
+                df_merge.insert(loc = storage_index + 1, column = 'Storage fee', value = None)
+                for i in range(0,len(df_merge.index)):
+                    #DBS、Cosco 用 P/U Date - 到货通知日
+                    #CEVA 分RBCW和RBAC/PTCN用到通日计算
+                    if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
+                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+                    elif df_merge.loc[i,'LSP'] == 'CEVA' and self.factory in ['RBAC','PTCN','RBCW']:
+                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+                    else:
+                        storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'ATA']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
+                
+
+                    if pd.isna(df_merge.loc[i,'Free Days of storage at destination']) is False:
+                        if storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] != 'IN':
+                            df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)']
+                        elif storage_days > 0 and df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
+                            df_merge.loc[i,'Storage fee'] = storage_days * df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] * df_merge.loc[i,'C. W/M  (KG/CBM)'] * df_merge.loc[i,'Ex.Main']
+                        else:
+                            df_merge.loc[i,'Storage fee'] = 0
+                    else:
+                        df_merge.loc[i,'Free Days of storage at destination'] =  False
+                        df_merge.loc[i,'Other charges-Storage fee airport destination after free days'] =  False
+            except:
+                pass            
             
             return df_merge
              
@@ -460,16 +491,24 @@ class GUI:
 
 
         save_path = os.path.dirname(self.path) +'/核对_'+ self.path.split('/')[-1]
-        df_merge.to_excel(save_path)
-        self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
+        try:
+            df_merge.to_excel(save_path)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '无法保存 \n')
+        
      
     #输入文件路径
     def selectPath_file(self):
         self.path = filedialog.askopenfilename(filetypes=[("数据表",[".xls", ".xlsx"])])
         self.entry00.set(self.path)
     
+    def showverifycode(self):
+        self.verifycode = self.Entry01.get()
+    
     def start(self):
         self.w1.delete("1.0", "end")
+        self.Entry1.delete(0, "end")
         self.factory = self.combobox.get()
         self.w1.insert(1.0, '已选择--%s\n' % (str(self.factory)))
         self.w1.insert(1.0, 'FTS核对勾选--%s\n' % (str(self.v1.get())))
@@ -482,3 +521,4 @@ class GUI:
 if __name__ == '__main__':
     a = GUI()
     a.root.mainloop()
+    
