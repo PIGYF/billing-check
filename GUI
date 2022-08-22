@@ -9,6 +9,17 @@ import math
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
+'''
+http://npm.taobao.org/mirrors/chromedriver/
+https://github.com/mozilla/geckodriver/releases/  
+下载chromedriver 版本与chrome一致，放在chrome安装目录下，或python安装目录下，再配置环境变量
+测试
+from selenium import webdriver
+driver = webdriver.Chrome()
+url = 'https://www.baidu.com'
+driver.get(url)
+'''
+
 class GUI:
 
     def __init__(self):
@@ -17,6 +28,8 @@ class GUI:
         self.root.geometry("550x240+100+150")
         self.interface()
         self.url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
+        self.dccs_path = r'C:\Users\DHY1SZH\Desktop\PROCESS of air 2021.xlsx'
+        #self.dccs_path = r'\\bosch.com\dfsrb\DfsCN\loc\szh\Department\FTSC\24_Inhouse-operation\05_DCCS\03_Report\PROCESS of air 2021.xlsx'
         self.username = 'HPI2SZH'
         self.password = 'Hupingping.3'
 
@@ -58,64 +71,50 @@ class GUI:
         self.v1 = tk.IntVar()
         self.Checkbutton01 = tk.Checkbutton(self.root, text="FTS核对",variable=self.v1)#勾选框
         self.Checkbutton01.grid(row=2, column=1)
+        self.Checkbutton01.select()
         
     def event(self):
         
-        #账单数据清洗
-        try:
-            df = pd.read_excel(self.path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
-        except:
-            df = pd.read_excel(self.path,sheet_name = 'Billing template',skip_rows = [0,5],header = 6)
-
-        df['Pick Up Date'] = pd.to_datetime(df['Pick Up Date'].dropna())
-        df['ATA'] = pd.to_datetime(df['ATA'].dropna())
-        try:
-            df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
-        except:
+        #账单清洗
+        def billing_cleaning():
+            
+            try:
+                df = pd.read_excel(self.path,sheet_name = 'Billing templete',skip_rows = [0,5],header = 6)
+            except:
+                df = pd.read_excel(self.path,skip_rows = [0,5],header = 6)
+            
+            df.dropna(how='all',inplace=True,subset=['HAWB'])
+            df = df.reset_index(drop=True)
+            df['Pick Up Date'] = pd.to_datetime(df['Pick Up Date'].dropna())
+            df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
+            df['ATA'] = pd.to_datetime(df['ATA'].dropna())
+            try:
+                df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
+            except:
                 df.rename(columns={'Arrive Notice submit Date':'Arrival Notice Submit Date'},inplace=True)
                 df['Arrival Notice Submit Date'] = pd.to_datetime(df['Arrival Notice Submit Date'].dropna())
-        try:
-            df.rename(columns={' Require Service Level':'Require Service Level'},inplace=True)
-        except:
-            pass
-        
-        try:
-            df.rename(columns={' Storage cost\n(CNY)':'Storage Rate\n(CNY)'},inplace=True)
-        except:
-            pass
+            try:
+                df.rename(columns={' Require Service Level':'Require Service Level'},inplace=True)
+            except:
+                pass
             
-        df['P/U Date'] = pd.to_datetime(df['P/U Date'].dropna())
-        df['HAWB'] = df['HAWB'].astype(str).replace('\\.0', '', regex=True)
-        for i in range(len(df.index)):
-            if df.loc[i,'Require Service Level'] in ['STD','Standrad']:
-                df.loc[i,'Require Service Level'] = 'Standard'
-            if df.loc[i,'LSP'] in ['DB','Schenker','DBSchenker']:
-                df.loc[i,'LSP'] = 'DBS'
-            if df.loc[i,'Require Service Level'] == 'Standard' and df.loc[i,'Place/Zone of Origin'] == 'Germany south (4-8)':
-                df.loc[i,'Place/Zone of Origin'] = 'Germany south (6-9)'
-            if df.loc[i,'LSP'] == 'DBS' and df.loc[i,'Origin Country [ISO country code]'] == 'CZ':
-                df.loc[i,'Origin Port'] = 'PRG'
-            
-        self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--成功\n')
-        
-        try:
-            all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
-            all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,80])
-            all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
-            add_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
-            add_rate = pd.read_excel(add_rate_card_path,sheet_name ='Rate card')
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--成功\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--失败\n')
-            
-        try:
-            exchange_rate_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\Exchange rate.xlsx'
-            exchange_rate = pd.read_excel(exchange_rate_path,sheet_name='Ex.CNY', index_col = 0)
-            exchange_countries = pd.read_excel(exchange_rate_path,sheet_name='Countries', index_col = 0)
-            currency_code = pd.read_excel(exchange_rate_path,sheet_name='Currency_code', index_col = 0)
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--成功\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--失败\n')
+            try:
+                df.rename(columns={' Storage cost\n(CNY)':'Storage Rate\n(CNY)'},inplace=True)
+            except:
+                pass
+                
+            df['HAWB'] = df['HAWB'].astype(str).replace('\\.0', '', regex=True)
+            for i in range(len(df.index)):
+                if df.loc[i,'Require Service Level'] in ['STD','Standrad']:
+                    df.loc[i,'Require Service Level'] = 'Standard'
+                if df.loc[i,'LSP'] in ['DB','Schenker','DBSchenker','SCH']:
+                    df.loc[i,'LSP'] = 'DBS'
+                if df.loc[i,'Require Service Level'] == 'Standard' and df.loc[i,'Place/Zone of Origin'] == 'Germany south (4-8)':
+                    df.loc[i,'Place/Zone of Origin'] = 'Germany south (6-9)'
+                if df.loc[i,'LSP'] == 'DBS' and df.loc[i,'Origin Country [ISO country code]'] == 'CZ':
+                    df.loc[i,'Origin Port'] = 'PRG'
+                    
+            return df
          
         #RBCW货损报告
         def damage_report_file(df):
@@ -132,27 +131,27 @@ class GUI:
             damage_report = pd.read_excel(damage_report_path,skip_rows = [0,1],header =2,usecols = [4,6,13])
             damage_report = damage_report[pd.isna(damage_report['Completion Date'])]
             damage_report['HAWB TO Number'] = damage_report['HAWB TO Number'].astype(str)
-
-            df['HAWB'] = df['HAWB'].astype(str)
             df = pd.merge(df,damage_report,how ='left',left_on =['HAWB'],right_on=['HAWB TO Number'])
             df.drop(labels='HAWB TO Number',axis=1,inplace=True)
             return df
-        
-        if self.factory =='RBCW':
-            df = damage_report_file(df)
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配货损报告--成功\n')
-        else:
-            pass
+            
+        #DCCS成本中心
+        def dccs_cost_center(df):
+            dccs_report = pd.read_excel(self.dccs_path,usecols = [0,4])
+            dccs_report['HAWB'] = dccs_report['HAWB'].astype(str)
+            dccs_report.rename(columns={'HAWB':'HAWB_1'},inplace=True)
+            df = pd.merge(df,dccs_report,how ='left',left_on =['HAWB'],right_on=['HAWB_1'])
+            df.drop(labels='HAWB_1',axis=1,inplace=True)
+            return df
         
         #FTS数据下载
-        def fts_download():
+        def fts_download(df):
             options = webdriver.ChromeOptions()
-            options.add_argument("download.default_directory=C:/Users/DHY1SZH/Desktop")
             driver = webdriver.Chrome(options=options)
             driver.set_window_size(width=600,height=800,windowHandle='current')
             driver.set_window_position(y=0, x=800)
             driver.get(self.url)
-            driver.implicitly_wait(10) #隐式等待
+            driver.implicitly_wait(20) #隐式等待
             driver.find_element(By.XPATH,'//*[@id="Label15"]').click()
             driver.find_element(By.XPATH,'//*[@id="txtAccountName"]').send_keys(self.username)
             driver.find_element(By.XPATH,'//*[@id="txtPassword"]').send_keys(self.password)
@@ -184,7 +183,7 @@ class GUI:
             else:
                 pass
             
-            time.sleep(1)
+            time.sleep(5)
             
             
             #SITE 选择登录
@@ -204,8 +203,10 @@ class GUI:
 
             driver.find_element(By.XPATH,'//*[@id="btnLogin"]').click()           
             
-            test_hawb = df['HAWB']            
-            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[3]/a').click() #DCCS跟踪表
+            test_hawb = df['HAWB'].dropna()            
+            driver.find_element(By.XPATH,'//*[@id="mainMenu"]').click()
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/nav/div/div/div/ul/li[9]/button').click()
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/nav/div/section/div/ul[1]/li/ul/li[10]/a').click() #DCCS跟踪表
             driver.switch_to.frame('main-iframe')
             hawb_label1 = driver.find_element(By.XPATH,'//*[@id="ASPxPageControl1_txtBlId"]')
             hawb_label1.click()
@@ -216,7 +217,9 @@ class GUI:
             name1 = 'Tracking_Report_' + time.strftime('%Y%m%d%H%M')
             driver.switch_to.default_content()#方法，就可以回退到主层
             
-            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/div/nav/ul/li[6]/a').click() #货运信息
+            driver.find_element(By.XPATH,'//*[@id="mainMenu"]').click()
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/nav/div/div/div/ul/li[2]/button').click()
+            driver.find_element(By.XPATH,'//*[@id="ctm-header"]/div[3]/nav/div/section/div[1]/ul[1]/li/ul/li[1]/a').click() #货运信息
             driver.switch_to.frame('main-iframe')
             hawb_label2 = driver.find_element(By.XPATH,'//*[@id="tabShipment_ShipmentList1_txtBlId"]')
             hawb_label2.click()
@@ -242,23 +245,14 @@ class GUI:
             
             return self.tracking_report_path,self.shipment_report_path
         
-        if self.v1.get() == 1:
-            try:
-                fts_download()
-            except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + 'FTS数据下载--失败\n')
-                pass
-        else:
-            pass
-            
-        
         #FTS数据和账单合并
         def fts_merge(df,fts):
             df = pd.merge(df,fts,how ='left',left_on = 'HAWB',right_on = '分运单号')
             df.drop('分运单号',axis=1, inplace = True) 
             return df
-
-        def replace_country_currency(df):
+        
+        #FTS运费换算
+        def replace_country_currency(df,exchange_countries,currency_code):
             for i in range(len(df['分运单号'])):
                 try:
                     df.loc[i,'启/抵运国(地区)'] = exchange_countries.loc[df['启/抵运国(地区)'][i],'缩写']
@@ -269,34 +263,7 @@ class GUI:
                     df.loc[i,'运费币制']= currency_code.loc[df['运费币制'][i],'Currency']
                 except:
                     df.loc[i,'运费币制'] = False      
-
-            return df
-        
-        try:
-            if self.factory == 'DCCS':
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,47,51,52,55])
-            elif self.factory == 'RBAC':
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,60])
-            elif self.factory == 'PTCN':
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,59])
-            elif self.factory == 'RBCD':
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,45,51,55])        
-            elif self.factory == 'RBCW':
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37])  
-            else:
-                #DCCC
-                df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,50,57,60,62])
-
-            df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
-            df_shipment_export = pd.read_excel(self.shipment_report_path,usecols = [2,9,44,46])
-            df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
-            replace_country_currency(df_shipment_export)
-
-            df = fts_merge(df,df_tracking_report)
-            df = fts_merge(df,df_shipment_export)
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--成功\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--失败\n')
+            return df        
         
         #价卡清洗
         def rate_card_cleaning(rate_card):
@@ -305,26 +272,19 @@ class GUI:
                                  (rate_card['Place/Zone of Destination'].str[:8] !='Shanghai')]
             rate_card.drop(index = pvg_rate.index,inplace = True)
             return rate_card
-
-        rate_card_cleaning(all_rate_card)
-        rate_card_cleaning(add_rate)
         
         #账单合并价卡
-        def merge_billing():
+        def merge_billing(df,all_rate_card):
             df_merge = pd.merge(df,all_rate_card,how ='left',
-                                left_on = ['LSP','Mode of Transport','Require Service Level','Origin Country [ISO country code]','Place/Zone of Origin','Origin Port','Destination Port'],
-                                right_on = ['Contract Partner','Transportation Mode','Type of service','Origin Country [ISO country code]','Place/Zone of Origin','LSP offered Airport of Loading  [3-digit port code] or Airport Grouping','LSP offered Airport of Destination  [3-digit port code] or Airport Gr']
+                                left_on = ['LSP','Mode of Transport','Require Service Level','Origin Country [ISO country code]','Place/Zone of Origin','Destination Port'],
+                                right_on = ['Contract Partner','Transportation Mode','Type of service','Origin Country [ISO country code]','Place/Zone of Origin','LSP offered Airport of Destination  [3-digit port code] or Airport Gr']
                                 )
             return df_merge
-        try:
-            df_merge = merge_billing()
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--成功\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--失败\n')
-            
-        def billing_check():
+        
+        #账单费用计算
+        def billing_check(df_merge,add_rate,exchange_rate):
+            #计费重
             try:
-                #计费重
                 CW_index = df_merge.columns.get_loc('计费重量')
                 df_merge.insert(loc = CW_index + 1, column = '计费重', value = None)
                 for i in range(0,len(df_merge.index)):
@@ -336,8 +296,8 @@ class GUI:
             except:
                 pass
             
-            try:
             #Xfee
+            try:
                 xfee_index = df_merge.columns.get_loc('Other charges X-ray [per kg actual weight]')
                 df_merge.insert(loc = xfee_index + 1, column = 'X fee', value = None)
                 for i in range(0,len(df_merge.index)):
@@ -357,16 +317,16 @@ class GUI:
             except:
                 pass
             
+            #Main careiage rate、add lead time           
             try:
-                #Main careiage rate、add lead time
                 TF_index = df_merge.columns.get_loc('Main Carriage rate ')
                 df_merge.insert(loc = TF_index + 1, column = 'TF Rate', value = None)
                 LT_index = df_merge.columns.get_loc('Door to port LT')
                 df_merge.insert(loc = LT_index + 1, column = 'add lead time', value = None)
                 for i in range(len(df_merge.index)):
-                    if df_merge.loc[i,'LSP'] == 'KWE':
-                        tf_rate = add_rate[(add_rate['LSP'] == 'KWE') & 
-                                           (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]'])&
+                    if df_merge.loc[i,'LSP'] in ['KWE','DSV'] and df_merge.loc[i,'Origin Country [ISO country code]'] != 'US':
+                        tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
+                                           (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
                                            (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port'])&
                                            (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
                                            (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])]                   
@@ -374,7 +334,6 @@ class GUI:
                         tf_rate = add_rate[(add_rate['LSP'] == df_merge.loc[i,'LSP']) & 
                                             (add_rate['Origin Country [ISO country code]'] == df_merge.loc[i,'Origin Country [ISO country code]']) &
                                             (add_rate[' Place/Zone of Origin'] == df_merge.loc[i,'Place/Zone of Origin']) &
-                                            #(add_rate['LSP offered Airport of Loading  [3-digit port code] or Airport Grouping'] == df_merge.loc[i,'Origin Port']) &
                                             (add_rate['LSP offered Airport of Destination  [3-digit port code] or Airport Gr'] == df_merge.loc[i,'Destination Port']) &
                                             (add_rate['End date'] >= df_merge.loc[i,'Pick Up Date']) &
                                             (add_rate['Start date'] <= df_merge.loc[i,'Pick Up Date'])
@@ -391,11 +350,10 @@ class GUI:
             except:
                 pass
             
-            
+            #origin exchange rate
+            #main exchange rate IN用USD, 其他用main carriage rate
+            #FTS 申报金额           
             try:
-                #origin exchange rate
-                #main exchange rate IN用USD, 其他用main carriage rate
-                #FTS 申报金额
                 df_merge.insert(loc = LT_index + 2, column = 'Ex.Origin', value = None)
                 df_merge.insert(loc = LT_index + 3, column = 'Ex.Main', value = None)
                 df_merge.insert(loc = LT_index + 4, column = 'FTS-CNY', value = None)
@@ -405,11 +363,13 @@ class GUI:
                     try:
                         exchange_origin = exchange_rate.loc[df_merge['Currency'][i],exchange_month[i]]
                         df_merge.loc[i,'Ex.Origin'] = exchange_origin
+                        
                         if df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
                             exchange_main = exchange_rate.loc['USD',exchange_month[i]]
                         else:
                             exchange_main = exchange_rate.loc[df_merge['Currency_7'][i],exchange_month[i]]
                         df_merge.loc[i,'Ex.Main'] = exchange_main
+                        
 
                     except:
                         df_merge.loc[i,'Ex.Origin'] = False
@@ -422,14 +382,41 @@ class GUI:
             except:
                 pass
             
+            #Freight till Dest.Port(cny)
+            df_merge.insert(loc = LT_index + 5, column = 'LSP-Freight till Port(CNY)', value = None)
+            for i in range(len(df_merge.index)):            
+                try:
+                    exchange_xray = exchange_rate.loc[df_merge['Currency_20'][i],exchange_month[i]]
+                    if df_merge.loc[i,'Origin Country [ISO country code]'] == 'IN':
+                        df_merge.loc[i,'LSP-Freight till Port(CNY)'] = ((df_merge.loc[i,'C. W/M  (KG/CBM)']*(df_merge.loc[i,'Pre-carriage Charge Rate']+df_merge.loc[i,'Origin Terminal Handling Charge'])+df_merge.loc[i,'Export Customs Clearance'])*df_merge.loc[i,'Ex.\nOrigin']
+                                                                        + df_merge.loc[i,'C. W/M  (KG/CBM)']*df_merge.loc[i,'Main Carriage Rate(inc.main + BAF)']*df_merge.loc[i,'Ex.\nMain']
+                                                                        + df_merge.loc[i,'X-ray fee\n(EUR)']*exchange_xray
+                                                                        +(df_merge.loc[i,'C. W/M  (KG/CBM)']*(df_merge.loc[i,'Pre-carriage Charge Rate']+df_merge.loc[i,'Origin Terminal Handling Charge'])+df_merge.loc[i,'Export Customs Clearance'])*df_merge.loc[i,'Ex.\nOrigin']*0.18)
+                    elif df_merge.loc[i,'Origin Country [ISO country code]'] == 'BR':
+                        df_merge.loc[i,'LSP-Freight till Port(CNY)'] = ((df_merge.loc[i,'C. W/M  (KG/CBM)']*(df_merge.loc[i,'Pre-carriage Charge Rate']+df_merge.loc[i,'Origin Terminal Handling Charge'])*df_merge.loc[i,'Ex.\nOrigin'])
+                                                                        + df_merge.loc[i,'C. W/M  (KG/CBM)']*df_merge.loc[i,'Main Carriage Rate(inc.main + BAF)']*df_merge.loc[i,'Ex.\nMain']
+                                                                        + df_merge.loc[i,'X-ray fee\n(EUR)']*exchange_xray
+                                                                        + df_merge.loc[i,'基准币制下的货值']*0.001)
+                    else:
+                        df_merge.loc[i,'LSP-Freight till Port(CNY)'] = ((df_merge.loc[i,'C. W/M  (KG/CBM)']*(df_merge.loc[i,'Pre-carriage Charge Rate']+df_merge.loc[i,'Origin Terminal Handling Charge'])*df_merge.loc[i,'Ex.\nOrigin'])
+                                                                        + df_merge.loc[i,'C. W/M  (KG/CBM)']*df_merge.loc[i,'Main Carriage Rate(inc.main + BAF)']*df_merge.loc[i,'Ex.\nMain']
+                                                                        + df_merge.loc[i,'X-ray fee\n(EUR)']*exchange_xray)
+
+                except:
+                    df_merge.loc[i,'LSP-Freight till Port(CNY)'] = False
+        
+            #Storage fee    
+            #其他货代用P/U Date - ATA
             try:
-                #Storage fee    
-                #其他货代用P/U Date - ATA
                 storage_index = df_merge.columns.get_loc('Other charges-Storage fee airport destination after free days')
-                df_merge.insert(loc = storage_index + 1, column = 'Storage fee', value = None)
+                df_merge.insert(loc = storage_index + 2, column = 'Storage fee', value = None)
+                df_merge.insert(loc = storage_index + 1, column = 'workdays', value = None)
+
                 for i in range(0,len(df_merge.index)):
-                    #DBS、Cosco 用 P/U Date - 到货通知日
-                    #CEVA 分RBCW和RBAC/PTCN用到通日计算
+                    #所有的DBS、Cosco 用 P/U Date - 到货通知日
+                    #CEVA 分RBCW和RBAC，PTCN用到通日计算
+                    df_merge.loc[i,'workdays'] = (df_merge.loc[i,'Arrival Notice Submit Date']-df_merge.loc[i,'ATA']).days
+                
                     if df_merge.loc[i,'LSP'] in ['DBS','COSCO']:
                         storage_days = (df_merge.loc[i,'P/U Date']-df_merge.loc[i,'Arrival Notice Submit Date']).days + 1 - df_merge.loc[i,'Free Days of storage at destination']
                     elif df_merge.loc[i,'LSP'] == 'CEVA' and self.factory in ['RBAC','PTCN','RBCW']:
@@ -451,52 +438,144 @@ class GUI:
             except:
                 pass            
             
-            return df_merge
-             
-        #核对
-        def compare(a,b):            
+            return df_merge        
+        
+        #账单列核对
+        def compare(a,b,df_merge):            
             try:
                 c = b +'_核对'
                 df_merge.insert(loc = (df_merge.columns.get_loc(b)) + 1, column = c, value = None)
                 for i in range(len(df_merge.index)):
-                    if df_merge.loc[i,a] == df_merge.loc[i,b]:
-                        df_merge.loc[i,c] = None
+                    if float(df_merge.loc[i,a]):
+                        if round(df_merge.loc[i,a],2) == round(df_merge.loc[i,b],2):
+                            df_merge.loc[i,c] = None
+                        else:
+                            df_merge.loc[i,c] = False
+                    
                     else:
-                        df_merge.loc[i,c] = False
+                        if df_merge.loc[i,a] == df_merge.loc[i,b]:
+                            df_merge.loc[i,c] = None
+                        else:
+                            df_merge.loc[i,c] = False
 
                 self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + b +'--核对完成\n')
                 
             except:
                 self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') +b +'--核对失败\n')
-            return df_merge
-
-        try:
-            df_merge = billing_check()
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--成功\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--失败\n')    
-
-        compare('计费重','C. W/M  (KG/CBM)')  
-        compare('Incoterms','贸易术语')
-        compare('Origin Country [ISO country code]','启/抵运国(地区)')
-
-        compare('Pre-carriage Charge Rate','Pre-Carriage Rate')
-        compare('Origin Terminal Handling Charge','Airport Origin Charge')
-        compare('Destination Terminal Handling Charge/ rate(CNY)','Airport of Destination Charge') 
-        compare('Ex.\nOrigin','Ex.Origin')
-        compare('Ex.\nMain','Ex.Main')
-        compare('X-ray fee\n(EUR)','X fee')
-        compare('Main Carriage Rate(inc.main + BAF)','TF Rate')
-        compare('Storage Rate\n(CNY)','Storage fee')
-
-
-        save_path = os.path.dirname(self.path) +'/核对_'+ self.path.split('/')[-1]
-        try:
-            df_merge.to_excel(save_path)
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
-        except:
-            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '无法保存 \n')
+            return df_merge        
         
+        #执行
+        def proceduce():
+                
+            try:
+                df = billing_cleaning() 
+                self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--成功\n')
+            except:
+                self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--失败\n')                               
+            
+            try:
+                all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+                all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,80])
+                all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
+                add_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+                add_rate = pd.read_excel(add_rate_card_path,sheet_name ='Rate card')
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--成功\n')
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--失败\n')
+                
+            try:
+                exchange_rate_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\Exchange rate.xlsx'
+                exchange_rate = pd.read_excel(exchange_rate_path,sheet_name='Ex.CNY', index_col = 0)
+                exchange_countries = pd.read_excel(exchange_rate_path,sheet_name='Countries', index_col = 0)
+                currency_code = pd.read_excel(exchange_rate_path,sheet_name='Currency_code', index_col = 0)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--成功\n')
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--失败\n')
+                
+            if self.factory =='RBCW':
+                df = damage_report_file(df)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配货损报告--成功\n')
+            else:
+                pass
+            
+            if self.factory =='DCCS':
+                df = dccs_cost_center(df)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配Process of air 2021--成功\n')
+            else:
+                pass              
+        
+            if self.v1.get() == 1:
+                try:
+                    fts_download(df)
+                except:
+                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + 'FTS数据下载--失败\n')
+                    pass
+        
+                try:
+                    if self.factory == 'DCCS':
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,47,51,52,55])
+                    elif self.factory == 'RBAC':
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,60])
+                    elif self.factory == 'PTCN':
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,59])
+                    elif self.factory == 'RBCD':
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,45,51,55])        
+                    elif self.factory == 'RBCW':
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37])  
+                    else:
+                        #DCCC
+                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,39,50,57,60,62])
+        
+                    df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
+                    df_shipment_export = pd.read_excel(self.shipment_report_path,usecols = [2,9,44,46])
+                    df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
+                    replace_country_currency(df_shipment_export,exchange_countries,currency_code)
+        
+                    df = fts_merge(df,df_tracking_report)
+                    df = fts_merge(df,df_shipment_export)
+                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--成功\n')
+                except:
+                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--失败\n')
+            else:
+                pass                
+    
+    
+            rate_card_cleaning(all_rate_card)
+            rate_card_cleaning(add_rate)
+    
+            try:
+                df_merge = merge_billing(df,all_rate_card)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--成功\n')
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--失败\n')
+            try:
+                df_merge = billing_check(df_merge,add_rate,exchange_rate)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--成功\n')
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--失败\n')               
+    
+            compare('计费重','C. W/M  (KG/CBM)',df_merge)  
+            compare('Incoterms','贸易术语',df_merge)
+            compare('Origin Country [ISO country code]','启/抵运国(地区)',df_merge)
+    
+            compare('Pre-carriage Charge Rate','Pre-Carriage Rate',df_merge)
+            compare('Origin Terminal Handling Charge','Airport Origin Charge',df_merge)
+            compare('Destination Terminal Handling Charge/ rate(CNY)','Airport of Destination Charge',df_merge) 
+            compare('Ex.\nOrigin','Ex.Origin',df_merge)
+            compare('Ex.\nMain','Ex.Main',df_merge)
+            compare('X-ray fee\n(EUR)','X fee',df_merge)
+            compare('Main Carriage Rate(inc.main + BAF)','TF Rate',df_merge)
+            compare('Storage Rate\n(CNY)','Storage fee',df_merge)
+    
+    
+            save_path = os.path.dirname(self.path) +'/核对_'+ self.path.split('/')[-1]
+            try:
+                df_merge.to_excel(save_path)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
+            except:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '无法保存 \n')
+        
+        proceduce()
      
     #输入文件路径
     def selectPath_file(self):
