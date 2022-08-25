@@ -20,12 +20,12 @@ url = 'https://www.baidu.com'
 driver.get(url)
 '''
 
-class GUI:
+class Gui:
 
     def __init__(self):
         self.root = tk.Tk()
         self.root.title('Billing')
-        self.root.geometry("550x240+100+150")
+        self.root.geometry("540x250+100+150")
         self.interface()
         self.url = 'https://sgpftsn2.bosch.com.sg/Login/Login.aspx'
         self.dccs_path = r'C:\Users\DHY1SZH\Desktop\PROCESS of air 2021.xlsx'
@@ -41,13 +41,13 @@ class GUI:
         self.Label0.grid(row=1, column=0)
         
         self.entry00 = tk.StringVar()
-        self.Entry0 = tk.Entry(self.root,textvariable=self.entry00,width=60)
+        self.Entry0 = tk.Entry(self.root,textvariable=self.entry00,width=65)
         self.Entry0.grid(row=1, column=1,sticky = 'w')
         self.Button1 = tk.Button(self.root, text="Browse", command=self.selectPath_file)
         self.Button1.grid(row=1, column=2)
         
         self.w1 = tk.Text(self.root,width=50, height=10)
-        self.w1.grid(row=3, column=1)
+        self.w1.grid(row=4, column=1)
         
         self.Label1 = tk.Label(self.root, text = "工厂：")
         self.Label1.grid(row =2,column = 0)
@@ -68,10 +68,16 @@ class GUI:
         self.Entry1 = tk.Entry(self.root,textvariable=self.Entry01 )#验证码输入
         self.Entry1.grid(row=2, column=1,sticky = 'e')
         
-        self.v1 = tk.IntVar()
-        self.Checkbutton01 = tk.Checkbutton(self.root, text="FTS核对",variable=self.v1)#勾选框
-        self.Checkbutton01.grid(row=2, column=1)
-        self.Checkbutton01.select()
+        self.Label2 = tk.Label(self.root, text = "FTS：")
+        self.Label2.grid(row =3,column = 0)
+        self.rd = tk.IntVar()
+        self.rd1 = tk.Radiobutton(self.root,text="1)下载&核对",variable=self.rd,value=1)
+        self.rd1.grid(row=3, column=1,sticky = 'w')
+        self.rd2 = tk.Radiobutton(self.root,text="2)核对",variable=self.rd,value=2)
+        self.rd2.grid(row=3, column=1)       
+        self.rd3 = tk.Radiobutton(self.root,text="3)跳过FTS核对",variable=self.rd,value=3)
+        self.rd3.grid(row=3, column=1,sticky = 'e')
+        self.rd3.select()
         
     def event(self):
         
@@ -135,7 +141,7 @@ class GUI:
             df.drop(labels='HAWB TO Number',axis=1,inplace=True)
             return df
             
-        #DCCS成本中心
+        #DCCS Vendor
         def dccs_cost_center(df):
             dccs_report = pd.read_excel(self.dccs_path,usecols = [0,4])
             dccs_report['HAWB'] = dccs_report['HAWB'].astype(str)
@@ -464,118 +470,142 @@ class GUI:
                 self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') +b +'--核对失败\n')
             return df_merge        
         
-        #执行
-        def proceduce():
-                
-            try:
-                df = billing_cleaning() 
-                self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--成功\n')
-            except:
-                self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--失败\n')                               
+        #执行               
+        try:
+            df = billing_cleaning() 
+            self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--成功\n')
+        except:
+            self.w1.insert(1.0, time.strftime('['+'%H:%M:%S'+'] ') + '账单读取--失败\n')                               
+        
+        try:
+            all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+            all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,80])
+            all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
+            add_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
+            add_rate = pd.read_excel(add_rate_card_path,sheet_name ='Rate card')
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--成功\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--失败\n')
             
+        try:
+            exchange_rate_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\Exchange rate.xlsx'
+            exchange_rate = pd.read_excel(exchange_rate_path,sheet_name='Ex.CNY', index_col = 0)
+            exchange_countries = pd.read_excel(exchange_rate_path,sheet_name='Countries', index_col = 0)
+            currency_code = pd.read_excel(exchange_rate_path,sheet_name='Currency_code', index_col = 0)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--成功\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--失败\n')
+            
+        if self.factory =='RBCW':
+            df = damage_report_file(df)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配货损报告--成功\n')
+        else:
+            pass
+        
+        if self.factory =='DCCS':
+            df = dccs_cost_center(df)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配Process of air 2021--成功\n')
+        else:
+            pass              
+        
+        #FTS勾选
+        if self.rd.get() == 1:
             try:
-                all_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
-                all_rate_card = pd.read_excel(all_rate_card_path,sheet_name ='all_rate',usecols = [0,1,2,5,6,10,11,13,15,17,18,19,21,22,27,30,33,34,36,48,51,54,55,57,58,80])
-                all_rate_card = all_rate_card.loc[all_rate_card['Validity'] == ('Valid')]
-                add_rate_card_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\02_Execution\006_TMC Daily Track List\05_GR\Daily_POD_Report\employee\Carson\数据源-AE\Share point rate card template.xlsx'
-                add_rate = pd.read_excel(add_rate_card_path,sheet_name ='Rate card')
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--成功\n')
+                fts_download(df)
             except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡读取--失败\n')
-                
-            try:
-                exchange_rate_path = r'\\bosch.com\dfsrb\DfsCN\loc\Sgh\RBCN\CP\LOG-AP\07_LOT_Overland\04_Operation\07_FCC\Operation\PS operation\Exchange rate.xlsx'
-                exchange_rate = pd.read_excel(exchange_rate_path,sheet_name='Ex.CNY', index_col = 0)
-                exchange_countries = pd.read_excel(exchange_rate_path,sheet_name='Countries', index_col = 0)
-                currency_code = pd.read_excel(exchange_rate_path,sheet_name='Currency_code', index_col = 0)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--成功\n')
-            except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '汇率读取--失败\n')
-                
-            if self.factory =='RBCW':
-                df = damage_report_file(df)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配货损报告--成功\n')
-            else:
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + 'FTS数据下载--失败\n')
                 pass
-            
-            if self.factory =='DCCS':
-                df = dccs_cost_center(df)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配Process of air 2021--成功\n')
-            else:
-                pass              
-        
-            if self.v1.get() == 1:
-                try:
-                    fts_download(df)
-                except:
-                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + 'FTS数据下载--失败\n')
-                    pass
-        
-                try:
-                    if self.factory == 'DCCS':
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,47,51,52,55])
-                    elif self.factory == 'RBAC':
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,60])
-                    elif self.factory == 'PTCN':
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,59])
-                    elif self.factory == 'RBCD':
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,45,51,55])        
-                    elif self.factory == 'RBCW':
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37])  
-                    else:
-                        #DCCC
-                        df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,39,50,57,60,62])
-        
-                    df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
-                    df_shipment_export = pd.read_excel(self.shipment_report_path,usecols = [2,9,44,46])
-                    df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
-                    replace_country_currency(df_shipment_export,exchange_countries,currency_code)
-        
-                    df = fts_merge(df,df_tracking_report)
-                    df = fts_merge(df,df_shipment_export)
-                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--成功\n')
-                except:
-                    self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--失败\n')
-            else:
-                pass                
-    
-    
-            rate_card_cleaning(all_rate_card)
-            rate_card_cleaning(add_rate)
     
             try:
-                df_merge = merge_billing(df,all_rate_card)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--成功\n')
+                if self.factory == 'DCCS':
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [0,4,11,13,37,47,51,52,55])
+                elif self.factory == 'RBAC':
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,60])
+                elif self.factory == 'PTCN':
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,49,57,59])
+                elif self.factory == 'RBCD':
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,45,51,55])        
+                elif self.factory == 'RBCW':
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37])  
+                else:
+                    #DCCC
+                    df_tracking_report = pd.read_excel(self.tracking_report_path,usecols = [4,11,13,37,39,50,57,60,62])
+    
+                df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
+                df_shipment_export = pd.read_excel(self.shipment_report_path,usecols = [2,9,44,46])
+                df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
+                replace_country_currency(df_shipment_export,exchange_countries,currency_code)
+    
+                df = fts_merge(df,df_tracking_report)
+                df = fts_merge(df,df_shipment_export)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--成功\n')
             except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--失败\n')
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--失败\n')
+        elif self.rd.get() == 2:
             try:
-                df_merge = billing_check(df_merge,add_rate,exchange_rate)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--成功\n')
+                if self.factory == 'DCCS':
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [0,4,11,13,37,47,51,52,55])
+                elif self.factory == 'RBAC':
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,60])
+                elif self.factory == 'PTCN':
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,49,57,59])
+                elif self.factory == 'RBCD':
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,45,51,55])        
+                elif self.factory == 'RBCW':
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37])  
+                else:
+                    #DCCC
+                    df_tracking_report = pd.read_excel(self.path,sheet_name = 'Tracking Report',usecols = [4,11,13,37,39,50,57,60,62])
+    
+                df_tracking_report['分运单号'] = df_tracking_report['分运单号'].astype(str)    
+                df_shipment_export = pd.read_excel(self.path,sheet_name = 'Shipment Export',usecols = [2,9,44,46])
+                df_shipment_export['分运单号'] = df_shipment_export['分运单号'].astype(str)
+                replace_country_currency(df_shipment_export,exchange_countries,currency_code)
+    
+                df = fts_merge(df,df_tracking_report)
+                df = fts_merge(df,df_shipment_export)
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--成功\n')                
             except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--失败\n')               
-    
-            compare('计费重','C. W/M  (KG/CBM)',df_merge)  
-            compare('Incoterms','贸易术语',df_merge)
-            compare('Origin Country [ISO country code]','启/抵运国(地区)',df_merge)
-    
-            compare('Pre-carriage Charge Rate','Pre-Carriage Rate',df_merge)
-            compare('Origin Terminal Handling Charge','Airport Origin Charge',df_merge)
-            compare('Destination Terminal Handling Charge/ rate(CNY)','Airport of Destination Charge',df_merge) 
-            compare('Ex.\nOrigin','Ex.Origin',df_merge)
-            compare('Ex.\nMain','Ex.Main',df_merge)
-            compare('X-ray fee\n(EUR)','X fee',df_merge)
-            compare('Main Carriage Rate(inc.main + BAF)','TF Rate',df_merge)
-            compare('Storage Rate\n(CNY)','Storage fee',df_merge)
-    
-    
-            save_path = os.path.dirname(self.path) +'/核对_'+ self.path.split('/')[-1]
-            try:
-                df_merge.to_excel(save_path)
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
-            except:
-                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '无法保存 \n')
-        
-        proceduce()
+                self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '匹配FTS日志--失败\n')
+                pass
+        else:
+            pass                
+
+        rate_card_cleaning(all_rate_card)
+        rate_card_cleaning(add_rate)
+
+        try:
+            df_merge = merge_billing(df,all_rate_card)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--成功\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '价卡匹配--失败\n')
+        try:
+            df_merge = billing_check(df_merge,add_rate,exchange_rate)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--成功\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '数据匹配--失败\n')               
+
+        compare('计费重','C. W/M  (KG/CBM)',df_merge)  
+        compare('Incoterms','贸易术语',df_merge)
+        compare('Origin Country [ISO country code]','启/抵运国(地区)',df_merge)
+
+        compare('Pre-carriage Charge Rate','Pre-Carriage Rate',df_merge)
+        compare('Origin Terminal Handling Charge','Airport Origin Charge',df_merge)
+        compare('Destination Terminal Handling Charge/ rate(CNY)','Airport of Destination Charge',df_merge) 
+        compare('Ex.\nOrigin','Ex.Origin',df_merge)
+        compare('Ex.\nMain','Ex.Main',df_merge)
+        compare('X-ray fee\n(EUR)','X fee',df_merge)
+        compare('Main Carriage Rate(inc.main + BAF)','TF Rate',df_merge)
+        compare('Storage Rate\n(CNY)','Storage fee',df_merge)
+
+
+        save_path = os.path.dirname(self.path) +'/核对_'+ self.path.split('/')[-1]
+        try:
+            df_merge.to_excel(save_path)
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '账单核对完成\n')
+        except:
+            self.w1.insert(1.0,time.strftime('['+'%H:%M:%S'+'] ') + '无法保存 \n')
+
      
     #输入文件路径
     def selectPath_file(self):
@@ -590,7 +620,7 @@ class GUI:
         self.Entry1.delete(0, "end")
         self.factory = self.combobox.get()
         self.w1.insert(1.0, '已选择--%s\n' % (str(self.factory)))
-        self.w1.insert(1.0, 'FTS核对勾选--%s\n' % (str(self.v1.get())))
+        self.w1.insert(1.0, 'FTS核对勾选--%s\n' % (str(self.rd.get())))
         self.T = threading.Thread(target=self.event)  # 多线程
         self.T.setDaemon(True)  # 线程守护，即主进程结束后，此线程也结束。否则主进程结束子进程不结束
         self.T.start()  # 启动
@@ -598,6 +628,6 @@ class GUI:
 
 
 if __name__ == '__main__':
-    a = GUI()
+    a = Gui()
     a.root.mainloop()
     
